@@ -3,6 +3,21 @@ Personal Weather Station IoT. It reads various environmental sensors and publish
 
 ![alt img1](https://github.com/rkaczorek/pws-iot/raw/main/media/screenshot.png)
 
+# Features
+- Environemntal Sensors
+ - Temperature
+ - Humidity
+ - Pressure
+ - Dew Point
+ - Wind Speed
+ - Wind Gust
+ - Wind Direction
+ - Rain Gauge
+ - Clouds
+- WiFi connection
+- MQTT messaging
+- Manual or Auto polling
+
 # Requirements
 - MQTT server
 - Node-Red (only for data persistency)
