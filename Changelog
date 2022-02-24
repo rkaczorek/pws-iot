@@ -1,0 +1,12 @@
+1.0	Initial release
+	- Supported sensors:
+		- Weather Meters (wind direction, wind speed, rainfall)
+		- BME280 (temperature, humidity, pressure)
+		- MLX90614 (ambient temperature, object temperature)
+	- Sanity checks for all sensor values
+	- MQTT messaging (individual sensor values and json)
+	- Configurable polling time (manual and auto)
+	- Configurable mean values for wind and clouds sensors
+	- Remote restart with MQTT command
+	- Remote programming (OTA)
+
