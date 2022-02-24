@@ -3,6 +3,11 @@ Personal Weather Station IoT. It reads various environmental sensors and publish
 
 ![alt img1](https://github.com/rkaczorek/pws-iot/raw/main/media/screenshot.png)
 
+# Requirements
+- MQTT server
+- Node-Red (only for data persistency)
+- InfluxDB (only for data persistency)
+
 # Supported MCUs
 - Arduino Nano 33 IoT
 - Arduino MKR WiFi 1000
