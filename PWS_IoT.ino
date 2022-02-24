@@ -2,7 +2,7 @@
   Name: Personal Weather Station IoT
   Version: 1.0
   By: Radek Kaczorek, July 2021
-  License: This code is public domain but you owe me a beer if you use this and we meet someday (Beerware license)
+  License: GNU General Public License v3.0
 
   This code reads various environmental sensors and publishes values to MQTT server via wireless connection.
 
