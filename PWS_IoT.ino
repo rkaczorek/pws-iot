@@ -770,9 +770,14 @@ void getSensors() {
   
     windspeed = windspeed / windSpeed.size();
     windspeed = ((int)(windspeed * 100)) / 100.0;
-  
+
+    // maximum reported wind speed - hurricane
+    if (windspeed > 120.0) {
+      windspeed = 120.0;
+    }
+
     mqttPublish("wind_speed", windspeed);
-    sensors["wind_speed"] = windspeed;      
+    sensors["wind_speed"] = windspeed;
 
     // clear values for next reading
     windSpeed.clear();
@@ -831,6 +836,11 @@ void getSensors() {
   // We get maximum value from spot measurements in loop
 
   windGustSpeed = ((int)(windGustSpeed * 100)) / 100.0;
+
+   // maximum reported wind gust speed - hurricane
+  if (windGustSpeed > 120.0) {
+    windGustSpeed = 120.0;
+  }
 
   mqttPublish("wind_gust_speed", windGustSpeed);
   sensors["wind_gust_speed"] = windGustSpeed;      
