@@ -903,9 +903,8 @@ void getSensors() {
   // TODO
 
   // ========================= RAIN FALL ==========================
-  unsigned long rainCheck = millis();
   float rainfall = rainClicks * 0.2794; // There is 0.011" = 0.2794 mm of rainfall for each click
-  rainfall = ((int)(rainfall * 100)) / 100.0;
+  rainfall = ((int)(rainfall * 10000)) / 10000.0;
 
   mqttPublish("rain", rainfall);
   sensors["rain"] = rainfall;
