@@ -1,6 +1,6 @@
 /*
   Name: Personal Weather Station IoT
-  Version: 1.0
+  Version: 1.1
   By: Radek Kaczorek, July 2021
   License: GNU General Public License v3.0
 
@@ -73,8 +73,6 @@ int bme_sensor = 0; // Temperature, Humidity, Pressure
 int mlx_sensor = 0; // Sky temperature / Clouds
 // -------------------------- set manually ---------------------------
 int rain_sensor = 1; // Rainfall - set to 1 to enable
-int wind_speed_sensor = 1; // Wind Speed - set to 1 to enable
-int wind_dir_sensor = 1; // Wind Direction - set to 1 to enable
 int als_sensor = 0; // Light
 // ===================================================================
 
@@ -284,13 +282,15 @@ void setup() {
   for (int i = 0; i < strlen(mqtt_device_name); i++)
     mqtt_device_name[i] = tolower(mqtt_device_name[i]);
 
-  // construct MQTT topics  
+  // construct MQTT topics
+  sprintf(mqtt_device_topic, "%s/%s", mqtt_root_topic, mqtt_device_name); // simplified device topic
+  sprintf(mqtt_status_topic, "%s/status", mqtt_device_topic); // device status
+
+  // device control via MQTT
   sprintf(mqtt_setroot_topic, "%s/set", mqtt_root_topic); // setting root name
-  sprintf(mqtt_device_topic, "%s/%s", mqtt_root_topic, mqtt_device_name);
-  sprintf(mqtt_status_topic, "%s/status", mqtt_device_topic); // setting will
   sprintf(mqtt_setname_topic, "%s/set", mqtt_device_topic);   // setting device name
-  sprintf(mqtt_poll_topic, "%s/poll", mqtt_device_topic); // sensors reading 
   sprintf(mqtt_restart_topic, "%s/restart", mqtt_device_topic); // restarting device
+  sprintf(mqtt_poll_topic, "%s/poll", mqtt_device_topic); // setting polling time (configurable via mqtt)
 
   // Connect to MQTT server
   Serial.print("Connecting to the MQTT broker: ");
@@ -309,11 +309,8 @@ void setup() {
     delay(5000);
   }
 
-  // set MQTT last will
-  String willPayload = "offline";
-  mqttClient.beginWill(mqtt_status_topic, willPayload.length(), true, 1);
-  mqttClient.print(willPayload);
-  mqttClient.endWill();
+  // publish MQTT status
+  mqttPublishStatus(0);
   
   // set callback
   mqttClient.onMessage(mqttCallback);
@@ -485,9 +482,12 @@ void getSensors() {
   //unsigned long unixtime = WiFi.getTime();
   int rssi = WiFi.RSSI();
 
+  // Update PWS status
+  mqttPublishStatus(1);
+  
   // publish mqtt messages
-  //mqttPublish("timestamp", unixtime);
-  mqttPublish("rssi", rssi);
+  //mqttPublishWeather("timestamp", unixtime);
+  mqttPublishWeather("rssi", rssi);
 
   // prepare json
   //sensors["timestamp"] = unixtime;
@@ -508,28 +508,28 @@ void getSensors() {
 
     if (temperature > -90.0 && temperature < 60.0) { // sanity check
       temperature = ((int) (temperature * 100)) / 100.0;
-      mqttPublish("temperature", temperature);
+      mqttPublishWeather("temperature", temperature);
       sensors["temperature"] = temperature;
     }
 
     if (humidity >= 0.0 && humidity <= 100.0) { // sanity check      
       humidity = ((int) (humidity * 100)) / 100.0;
-      mqttPublish("humidity", humidity);
+      mqttPublishWeather("humidity", humidity);
       sensors["humidity"] = humidity;
     }
 
     if (pressure > 850.0 && pressure < 1100.0) { // sanity check
       pressure = ((long) (pressure * 100)) / 100.0;
       //float altitude = ((long) (bme.readAltitude(SEALEVELPRESSURE_HPA) * 100) / 100.0); // meters
-      mqttPublish("pressure", pressure);
-      //mqttPublish("altitude", altitude);
+      mqttPublishWeather("pressure", pressure);
+      //mqttPublishWeather("altitude", altitude);
       sensors["pressure"] = pressure;
       //sensors["altitude"] = altitude;
     }
 
     if (temperature > -90.0 && temperature < 60.0 && humidity >= 0.0 && humidity <= 100.0) { // sanity check
       float dewpoint = ((int) ((pow(humidity / 100.0, 0.125) * (112.0 + (0.9 * temperature)) + (0.1 * temperature) - 112.0) * 100)) / 100.0; // celcius
-      mqttPublish("dew_point", dewpoint);
+      mqttPublishWeather("dew_point", dewpoint);
       sensors["dew_point"] = dewpoint;
     }
         
@@ -609,13 +609,13 @@ void getSensors() {
     
       float clouds = (((int) ((Tsky - Tclear) * 100.0 / (Tcloudy - Tclear)) * 100)) / 100.0;
   
-      mqttPublish("ir_ambient", temperature_ambient);
+      mqttPublishWeather("ir_ambient", temperature_ambient);
       sensors["ir_ambient"] = temperature_ambient;
   
-      mqttPublish("ir_sky", temperature_sky);
+      mqttPublishWeather("ir_sky", temperature_sky);
       sensors["ir_sky"] = temperature_sky;
   
-      mqttPublish("clouds", clouds);
+      mqttPublishWeather("clouds", clouds);
       sensors["clouds"] = clouds;
   
       // clear values for next reading
@@ -645,7 +645,7 @@ void getSensors() {
     float lux;
     int als_status = als.getALSLux(lux);
     if (als_status == 0) {
-      mqttPublish("light", lux);
+      mqttPublishWeather("light", lux);
       sensors["light"] = lux;
       if (DEBUG) {
         Serial.println("  VEML: OK");
@@ -670,7 +670,7 @@ void getSensors() {
         windspeed = 120.0;
       }
   
-      mqttPublish("wind_speed", windspeed);
+      mqttPublishWeather("wind_speed", windspeed);
       sensors["wind_speed"] = windspeed;
   
       // clear values for next reading
@@ -714,9 +714,9 @@ void getSensors() {
     
       String winddir_cardinal = cardinal.getString(2, winddir);
   
-      mqttPublish("wind_dir", winddir);
+      mqttPublishWeather("wind_dir", winddir);
       sensors["wind_dir"] = winddir;
-      mqttPublish("wind_dir_cardinal", winddir_cardinal.c_str());    
+      mqttPublishWeather("wind_dir_cardinal", winddir_cardinal.c_str());    
       sensors["wind_dir_cardinal"] = winddir_cardinal;    
   
       // clear values for next reading
@@ -739,7 +739,7 @@ void getSensors() {
       windGustSpeed = 120.0;
     }
   
-    mqttPublish("wind_gust_speed", windGustSpeed);
+    mqttPublishWeather("wind_gust_speed", windGustSpeed);
     sensors["wind_gust_speed"] = windGustSpeed;      
   
     // clear values for next reading
@@ -784,9 +784,9 @@ void getSensors() {
       String windgustdir_cardinal = cardinal.getString(2, windgustdir);
   
       if (windGustSpeed > 0) {
-        mqttPublish("wind_gust_dir", windgustdir);
+        mqttPublishWeather("wind_gust_dir", windgustdir);
         sensors["wind_gust_dir"] = windgustdir;
-        mqttPublish("wind_gust_dir_cardinal", windgustdir_cardinal.c_str());
+        mqttPublishWeather("wind_gust_dir_cardinal", windgustdir_cardinal.c_str());
         sensors["wind_gust_dir_cardinal"] = windgustdir_cardinal;      
       }
   
@@ -804,7 +804,7 @@ void getSensors() {
     float rainfall = rainClicks * 0.2794; // There is 0.011" = 0.2794 mm of rainfall for each click
     rainfall = ((int)(rainfall * 10000)) / 10000.0;
   
-    mqttPublish("rain", rainfall);
+    mqttPublishWeather("rain", rainfall);
     sensors["rain"] = rainfall;
   
     // clear values for next reading
@@ -817,7 +817,7 @@ void getSensors() {
 
   // ========================= JSON ==========================
   serializeJson(sensors, json);
-  mqttPublish("json", json);
+  mqttPublishWeather("json", json);
 }
 
 int get_wind_direction()
@@ -865,10 +865,16 @@ bool mqttConnect() {
     mqttPublishStatus(1);
 
     // publish device ip once when connected to MQTT
-    char localip[16];
+    char localip[16], iptopic[32];
     IPAddress ip = WiFi.localIP();
+    sprintf(iptopic, "%s/ip", mqtt_device_topic);
     sprintf(localip, "%d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3]);
-    mqttPublish("ip", localip);
+    
+    // mqttPublishWeather("ip", localip);
+    mqttClient.beginMessage(iptopic, true, 0, false);
+    mqttClient.print(localip);
+    mqttClient.endMessage();
+
     return true;
   } else {
     Serial.println("");
@@ -918,7 +924,22 @@ bool mqttSubscribe() {
   }
 }
 
-void mqttPublish(char* topic, float val) {
+void mqttPublishStatus(int status)
+{
+  bool retain = false;
+  String payload = "offline";
+  if ( status == 1 ) {
+    payload = "online";
+  } else {
+    payload = "offline";
+    retain = true;
+  }
+  mqttClient.beginMessage(mqtt_status_topic, payload.length(), retain, 0, false);
+  mqttClient.print(payload);
+  mqttClient.endMessage();
+}
+
+void mqttPublishWeather(char* topic, float val) {
   char mqtt_topic[512] = "";
   char msg[16];
   sprintf(mqtt_topic, "%s/%s", mqtt_device_topic, topic);
@@ -940,7 +961,7 @@ void mqttPublish(char* topic, float val) {
   }  
 }
 
-void mqttPublish(char* topic, const char* msg) {
+void mqttPublishWeather(char* topic, const char* msg) {
   char mqtt_topic[512] = "";
   sprintf(mqtt_topic, "%s/%s", mqtt_device_topic, topic);
   size_t payloadSize = strlen(msg);
@@ -966,7 +987,7 @@ void mqttPublishHA(char* topic, const char* msg) {
   strcpy(mqtt_topic, topic);
   size_t payloadSize = strlen(msg);
 
-  mqttClient.beginMessage(mqtt_topic, payloadSize, false, 0, false);
+  mqttClient.beginMessage(mqtt_topic, payloadSize, true, 0, false);
   mqttClient.print(msg);
   mqttClient.endMessage();
 }
@@ -1017,19 +1038,6 @@ void mqttCallback(int length) {
       NVIC_SystemReset();
     }
   }
-}
-
-void mqttPublishStatus(int status)
-{
-  String payload = "offline";
-  if ( status == 1 ) {
-    payload = "online";
-  } else {
-    payload = "offline";
-  }
-  mqttClient.beginMessage(mqtt_status_topic, payload.length(), true, 0, false);
-  mqttClient.print(payload);
-  mqttClient.endMessage();
 }
 
 void initHASensor(const char* sensor)
