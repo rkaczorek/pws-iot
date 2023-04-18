@@ -103,7 +103,7 @@ std::vector<float> irSky;
 
 // polling vars
 unsigned long timestamp = 0; // set tickmark for auto polling
-unsigned int polling = 0; // auto polling time
+unsigned int polling = 60; // auto polling time
 
 // wifi
 const char ssid[] = SECRET_SSID; // your network SSID (name)
