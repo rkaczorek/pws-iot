@@ -71,6 +71,7 @@
 // -------------------------- autodetected ---------------------------
 int bme_sensor = 0; // Temperature, Humidity, Pressure
 int mlx_sensor = 0; // Sky temperature / Clouds
+int wind_sensor = 0; // Wind Speed - set to 1 to enable
 // -------------------------- set manually ---------------------------
 int rain_sensor = 1; // Rainfall - set to 1 to enable
 int als_sensor = 0; // Light
@@ -218,18 +219,19 @@ void setup() {
     Serial.println("  - Rain sensor DISABLED");
   }
 
-  // Wind speed sensor
-  if (wind_speed_sensor) {
-    Serial.println("  - Wind Speed sensor ENABLED");
+  // Wind sensors
+  int winddir = get_wind_direction();
+  if (winddir != -1)
+  {
+    wind_sensor = 1;
   } else {
-    Serial.println("  - Wind Speed sensor DISABLED");
+    wind_sensor = 0;
   }
 
-  // Wind direction sensor
-  if (wind_dir_sensor) {
-    Serial.println("  - Wind Direction sensor ENABLED");
+  if (wind_sensor) {
+    Serial.println("  - Wind sensors ENABLED");
   } else {
-    Serial.println("  - Wind Direction sensor DISABLED");
+    Serial.println("  - Wind sensors DISABLED");
   }
 
   Serial.println("");
@@ -310,7 +312,7 @@ void setup() {
   }
 
   // publish MQTT status
-  mqttPublishStatus(0);
+  mqttPublishStatus(1);
   
   // set callback
   mqttClient.onMessage(mqttCallback);
@@ -342,14 +344,10 @@ void setup() {
       initHASensor("rain");
     }
 
-    // Wind Speed
-    if (wind_speed_sensor) {
+    // Wind Speed & Direction
+    if (wind_sensor) {
       initHASensor("wind_speed");
       initHASensor("wind_gust_speed");
-    }
-
-    // Wind Direction
-    if (wind_dir_sensor) {
       initHASensor("wind_dir");
       initHASensor("wind_dir_cardinal");
     }
@@ -413,21 +411,21 @@ void loop() {
 
   // collect wind sensors data every loop
   if (millis() - lastWindMillis > WIND_AVERAGING_TIME) {
-    int winddir = -1;
 
-    if (wind_dir_sensor) {
-      // get wind direction
-      winddir = get_wind_direction();
-      if (winddir != -1) {
-        // calculate corrected wind direction
-        winddir += WIND_DIR_CORRECTION;
-        if(winddir >= 360) winddir -= 360;
-        if(winddir < 0) winddir += 360;
-        windDir.push_back(winddir);
-      }
+    // get wind direction
+    int winddir = get_wind_direction();
+    if (winddir != -1) {
+      // calculate corrected wind direction
+      winddir += WIND_DIR_CORRECTION;
+      if(winddir >= 360) winddir -= 360;
+      if(winddir < 0) winddir += 360;
+      windDir.push_back(winddir);
+      wind_sensor = 1; // we have readings - ENABLE
+    } else {
+      wind_sensor = 0; // we do not have readings - DISABLE
     }
 
-    if (wind_speed_sensor) {
+    if (wind_sensor) {
       // get wind speed
       float windspeed = (float) windClicks / (WIND_AVERAGING_TIME / 1000); // clicks per second
       windClicks = 0;
@@ -463,7 +461,6 @@ void loop() {
     }
     lastCloudsMillis = millis();
   }
-
   autoPolling();
 }
 
@@ -653,7 +650,7 @@ void getSensors() {
     }
   }
 
-  if (wind_speed_sensor) {
+  if (wind_sensor) {
     // ========================= WIND SPEED ==========================
     float windspeed = 0;
     if (windSpeed.size() > 0) {
@@ -680,9 +677,7 @@ void getSensors() {
         Serial.println("  Wind speed: OK");
       }
     }
-  }
 
-  if (wind_dir_sensor) {
     // ========================= WIND DIRECTION ==========================
     if (windDir.size() > 0) {
       // We can't just take an average of spot measures.
@@ -726,9 +721,7 @@ void getSensors() {
         Serial.println("  Wind direction: OK");
       }
     }
-  }
 
-  if (wind_speed_sensor) {
     // ========================= WIND GUST SPEED ==========================
     // We get maximum value from spot measurements in loop
   
@@ -748,9 +741,7 @@ void getSensors() {
     if (DEBUG) {
       Serial.println("  Wind gust: OK");
     }
-  }
 
-  if (wind_dir_sensor) {
     // ========================= WIND GUST DIRECTION ==========================
     if (windGustDir.size() > 0) {
       // We can't just take an average of spot measures.
@@ -912,10 +903,6 @@ bool mqttSubscribe() {
   if (mqttClient.subscribe(mqtt_poll_topic) && mqttClient.subscribe(mqtt_restart_topic)) {
     // successfully subscribed to topics
     Serial.println("Successfully subscribed to control topics");
-
-    // publish connection status
-    mqttPublishStatus(1);
-
     return true;
   } else {
     Serial.println("Error subscribing to control topics!");
