@@ -2,20 +2,22 @@
 #define DEBUG false
 
 // WiFi
-#define SECRET_SSID "ssid"
-#define SECRET_PASS "pass"
+#define WIFI_SSID "ssid"
+#define WIFI_PASS "password"
 
 // MQTT
 #define MQTT_HOST "ip or hostname"
-#define MQTT_PORT port_number
+#define MQTT_PORT 1883
 #define MQTT_USER ""
 #define MQTT_PASS ""
 #define MQTT_ROOT_TOPIC "environment"
-#define MQTT_DEVICE_NAME "pws"
-#define MQTT_DEVICE_NAME_TO_HOSTNAME true // autoset device name to hostname
+#define MQTT_DEVICE_ID "pws"
+#define MQTT_DEVICE_ID_TO_HOSTNAME true // autoset device name to hostname
 
 // Other
-#define WIND_DIR_CORRECTION 60; // correction factor for real wind direction
+#define OTA_USER "Arduino" // OTA username
+#define OTA_PASS "1234" // OTA password
+#define WIND_DIR_CORRECTION 60 // correction factor for real wind direction
 #define WIND_AVERAGING_TIME 10000 // averaging time for wind  in ms
 #define CLOUDS_AVERAGING_TIME 5000 // averaging time for wind  in ms
 
@@ -23,3 +25,6 @@
 #define HOMEASSISTANT true // enable/disable Home Assistant MQTT integration. See details: https://www.home-assistant.io/integrations/mqtt
 #define HA_DISCOVERY_TOPIC "homeassistant" // must be the same as configured in HA (default=homeassistant)
 
+// Correction factors
+#define C_ENABLE true // enable/disable sensors reading correction
+#define C_TEMPERATURE 1.3f // temperature sensor correction factor
