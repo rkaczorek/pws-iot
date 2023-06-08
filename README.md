@@ -14,14 +14,16 @@ Personal Weather Station IoT. It reads various environmental sensors and publish
     - Wind Direction
     - Rain Gauge
     - Clouds
+    - Light
 - WiFi connection
 - MQTT messaging
 - Manual or Auto polling
+- Home Assistant integration
 
 # Requirements
 - MQTT server
-- Node-Red (only for data persistency)
-- InfluxDB (only for data persistency)
+- Node-Red (optional - only for routing data to InfluxDB)
+- InfluxDB (optional - only for data persistency)
 
 # Supported MCUs
 - Arduino Nano 33 IoT
@@ -37,3 +39,8 @@ Personal Weather Station IoT. It reads various environmental sensors and publish
 - BME280 (temperature, humidity, pressure)
 - MLX90614 (ambient temperature, object temperature)
 - VEML7700 (light)
+
+# Home Assistant
+You can easily integrate Personal Weather Station IoT with your Home Assistant.
+Just make sure that MQTT Integration is installed on Home Assistant. We are using Home Assistant 
+autodiscovery feature to add Personal Weather Station device and sensor entities automatically.
