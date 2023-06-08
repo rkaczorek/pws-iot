@@ -581,7 +581,10 @@ void mqttPublishWeather(char* topic, float val) {
   sprintf(mqtt_topic, "%s/%s", mqtt_device_topic, topic);
   sprintf(msg, "%0.2f", val);
 
-  mqttClient.beginMessage(mqtt_topic);
+  bool retain = false;
+  int qos = 0;
+
+  mqttClient.beginMessage(mqtt_topic, retain, qos);
   mqttClient.print(msg);
   mqttClient.endMessage();
 
@@ -602,7 +605,10 @@ void mqttPublishWeather(char* topic, const char* msg) {
   sprintf(mqtt_topic, "%s/%s", mqtt_device_topic, topic);
   size_t payloadSize = strlen(msg);
 
-  mqttClient.beginMessage(mqtt_topic, payloadSize, false, 0, false);
+  bool retain = false;
+  int qos = 0;
+
+  mqttClient.beginMessage(mqtt_topic, payloadSize, retain, qos, false);
   mqttClient.print(msg);
   mqttClient.endMessage();
 
@@ -623,7 +629,10 @@ void mqttPublishHA(char* topic, const char* msg) {
   strcpy(mqtt_topic, topic);
   size_t payloadSize = strlen(msg);
 
-  mqttClient.beginMessage(mqtt_topic, payloadSize, true, 0, false);
+  bool retain = true;
+  int qos = 1;
+
+  mqttClient.beginMessage(mqtt_topic, payloadSize, retain, qos, false);
   mqttClient.print(msg);
   mqttClient.endMessage();
 }
