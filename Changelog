@@ -1,3 +1,11 @@
+1.1 	Update
+	- HA MQTT Integration added. Code refactoring
+	- Fix rainfall precision
+	- Adding maximum wind speeds
+	- Readme updated
+	- License updated
+	- Inline comments updated
+
 1.0	Initial release
 	- Supported sensors:
 		- Weather Meters (wind direction, wind speed, rainfall)
