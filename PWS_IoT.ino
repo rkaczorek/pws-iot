@@ -39,7 +39,7 @@
     HA_DISCOVERY_TOPIC
 */
 
-#define VERSION 1.1
+#define VERSION 1.2
 
 #include "PWS_IoT.h"
 
