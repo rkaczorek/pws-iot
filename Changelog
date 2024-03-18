@@ -1,3 +1,7 @@
+1.2	Update
+	- HA MQTT messages published on every update
+	- Added last_seen sensor
+	- Fine tuning of model parameters for clouds
 1.1 	Update
 	- HA MQTT Integration added. Code refactoring
 	- Fix rainfall precision

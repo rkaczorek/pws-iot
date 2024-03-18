@@ -1,7 +1,7 @@
 /*
   Name: Personal Weather Station IoT
-  Version: 1.1
-  By: Radek Kaczorek, (C) 2021 - 2023
+  Version: 1.2
+  By: Radek Kaczorek, (C) 2021 - 2024
   License: GNU General Public License v3.0
 
   This code reads various environmental sensors and publishes values to MQTT server via wireless connection.
@@ -59,6 +59,7 @@
 #include <SparkFunMLX90614.h> // https://github.com/sparkfun/SparkFun_MLX90614_Arduino_Library
 #include "Adafruit_VEML7700.h" // https://github.com/adafruit/Adafruit_VEML7700
 #include <Cardinal.h> // https://github.com/DaAwesomeP/arduino-cardinal
+#include <SimpleTime.h>
 
 #include <vector>
 #include <numeric>
@@ -304,62 +305,19 @@ void setup() {
     Serial.println("  - Wind sensors\tERROR");
   }
 
-  Serial.println("");
-
-  // Enable autodiscovery of sensors for Home Assistant
+  // homassistant integration status
   if (HOMEASSISTANT) {
     Serial.println("Home Assistant MQTT integration ENABLED");
 
     if (DEBUG) {
       Serial.print("Autodiscovery topic: ");
       Serial.println(HA_DISCOVERY_TOPIC);
-      Serial.println("Sensors:");
     }
-
-    // Default - always available
-    initHASensor("status", "sensor", NULL, NULL, "mdi:connection", "Status");
-    initHASensor("poll", "sensor", NULL, "s", "mdi:clock", "Update Interval");
-    initHASensor("rssi", "sensor", "signal_strength", "dBm", NULL, "RSSI");
-
-    // Rainfall
-    if (rainfall_sensor) {
-      initHASensor("rainfall", "sensor", "precipitation", "mm", NULL, "Rainfall");
-    }
-
-    // Wind Speed & Direction
-    if (wind_sensor) {
-      initHASensor("wind_speed", "sensor", "wind_speed", "km/h", NULL, "Wind Speed");
-      initHASensor("wind_gust_speed", "sensor", "wind_speed", "km/h", NULL, "Wind Gust Speed");
-      initHASensor("wind_dir", "sensor", NULL, "°", "mdi:compass", "Wind Direction");
-      initHASensor("wind_dir_cardinal", "sensor", NULL, NULL, "mdi:compass", "Wind Direction");
-      initHASensor("wind_gust_dir", "sensor", NULL, "°", "mdi:compass", "Wind Gust Direction");
-      initHASensor("wind_gust_dir_cardinal", "sensor", NULL, NULL, "mdi:compass", "Wind Gust Direction");
-    }
-
-    // BME
-    if (bme_sensor) {
-      initHASensor("temperature", "sensor", "temperature", "°C", NULL, "Temperature");
-      initHASensor("humidity", "sensor", "humidity", "%", NULL, "Humidity");
-      initHASensor("dew_point", "sensor", "temperature", "°C", NULL, "Dew Point");
-      initHASensor("pressure", "sensor", "atmospheric_pressure", "hPa", NULL, "Pressure");
-    }    
-  
-    // MLX
-    if (mlx_sensor) {
-      initHASensor("ir_ambient", "sensor", "temperature", "°C", NULL, "IR Ambient Temperature");
-      initHASensor("ir_sky", "sensor", "temperature", "°C", NULL, "IR Sky Temperature");
-      initHASensor("clouds", "sensor", NULL, "%", "mdi:cloud", "Clouds");
-    }
-
-    // VEML
-    if (veml_sensor) {
-      initHASensor("light", "sensor", "illuminance", "lx", NULL, "Light");
-    }
-    Serial.println("");
   } else {
       Serial.println("Home Assistant integration DISABLED");
-      Serial.println("");
   }
+
+  Serial.println("");
 
   // Ready
   Serial.println("Personal Weather Station OK");
@@ -754,8 +712,62 @@ void getSensors() {
 
   blinkLED(1);
 
+  // Enable autodiscovery of sensors for Home Assistant
+  if (HOMEASSISTANT) {
+  
+    // Default - always available
+    initHASensor("status", "sensor", NULL, NULL, "mdi:connection", "Status");
+    initHASensor("last_seen", "sensor", "timestamp", NULL, "mdi:clock", "Last Seen");
+    initHASensor("poll", "sensor", NULL, "s", "mdi:clock", "Update Interval");
+    initHASensor("rssi", "sensor", "signal_strength", "dBm", NULL, "RSSI");
+
+    // Rainfall
+    if (rainfall_sensor) {
+      initHASensor("rainfall", "sensor", "precipitation", "mm", NULL, "Rainfall");
+    }
+
+    // Wind Speed & Direction
+    if (wind_sensor) {
+      initHASensor("wind_speed", "sensor", "wind_speed", "km/h", NULL, "Wind Speed");
+      initHASensor("wind_gust_speed", "sensor", "wind_speed", "km/h", NULL, "Wind Gust Speed");
+      initHASensor("wind_dir", "sensor", NULL, "°", "mdi:compass", "Wind Direction");
+      initHASensor("wind_dir_cardinal", "sensor", NULL, NULL, "mdi:compass", "Wind Direction");
+      initHASensor("wind_gust_dir", "sensor", NULL, "°", "mdi:compass", "Wind Gust Direction");
+      initHASensor("wind_gust_dir_cardinal", "sensor", NULL, NULL, "mdi:compass", "Wind Gust Direction");
+    }
+
+    // BME
+    if (bme_sensor) {
+      initHASensor("temperature", "sensor", "temperature", "°C", NULL, "Temperature");
+      initHASensor("humidity", "sensor", "humidity", "%", NULL, "Humidity");
+      initHASensor("dew_point", "sensor", "temperature", "°C", NULL, "Dew Point");
+      initHASensor("pressure", "sensor", "atmospheric_pressure", "hPa", NULL, "Pressure");
+    }    
+  
+    // MLX
+    if (mlx_sensor) {
+      initHASensor("ir_ambient", "sensor", "temperature", "°C", NULL, "IR Ambient Temperature");
+      initHASensor("ir_sky", "sensor", "temperature", "°C", NULL, "IR Sky Temperature");
+      initHASensor("clouds", "sensor", NULL, "%", "mdi:cloud", "Clouds");
+    }
+
+    // VEML
+    if (veml_sensor) {
+      initHASensor("light", "sensor", "illuminance", "lx", NULL, "Light");
+    }
+
+  }
+
   // Update PWS status
   mqttPublishStatus(1);
+
+  // Last seen
+  // 2024-01-04T21:45:19+00:00
+  char last_seen[32];
+  time_t t = WiFi.getTime();
+  sprintf(last_seen, "%d-%02d-%02dT%02d:%02d:%02d+00:00", year(t), month(t), day(t), hour(t), minute(t), second(t));
+  mqttPublishWeather("last_seen", last_seen);
+  sensors["last_seen"] = last_seen;
 
   // IP
   char localip[16], iptopic[32];
@@ -884,7 +896,7 @@ void getSensors() {
       float K5 = 100.0;
       float K6 = 0.0; // K6 and K7 introduce a S bent around x-axis crossing point;
       float K7 = 0.0;
-      float Tclear = -8.0; //Clear sky corrected temperature (temp below means 0% clouds)
+      float Tclear = -5.0; //Clear sky corrected temperature (temp below means 0% clouds) // changed from -8 on 09/07/2023
       float Tcloudy = 0.0; //Covered sky corrected temperature (temp above means 100% clouds)
       float Tcw = 0.0; // Tcw is cold weather factor
   
