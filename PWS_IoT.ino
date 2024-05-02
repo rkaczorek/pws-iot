@@ -1,6 +1,6 @@
 /*
   Name: Personal Weather Station IoT
-  Version: 1.2
+  Version: 1.3
   By: Radek Kaczorek, (C) 2021 - 2024
   License: GNU General Public License v3.0
 
@@ -39,7 +39,7 @@
     HA_DISCOVERY_TOPIC
 */
 
-#define VERSION 1.2
+#define VERSION 1.3
 
 #include "PWS_IoT.h"
 
@@ -305,7 +305,7 @@ void setup() {
     Serial.println("  - Wind sensors\tERROR");
   }
 
-  // homassistant integration status
+  // Enable autodiscovery of sensors for Home Assistant
   if (HOMEASSISTANT) {
     Serial.println("Home Assistant MQTT integration ENABLED");
 
@@ -313,6 +313,48 @@ void setup() {
       Serial.print("Autodiscovery topic: ");
       Serial.println(HA_DISCOVERY_TOPIC);
     }
+  
+    // Default - always available
+    initHAEntity("status", "sensor", NULL, NULL, "mdi:connection", "Status");
+    initHAEntity("last_seen", "sensor", "timestamp", NULL, "mdi:clock", "Last Seen");
+    initHAEntity("poll", "sensor", NULL, "s", "mdi:clock", "Update Interval");
+    initHAEntity("rssi", "sensor", "signal_strength", "dBm", NULL, "RSSI");
+
+    // Rainfall
+    if (rainfall_sensor) {
+      initHAEntity("rainfall", "sensor", "precipitation", "mm", NULL, "Rainfall");
+    }
+
+    // Wind Speed & Direction
+    if (wind_sensor) {
+      initHAEntity("wind_speed", "sensor", "wind_speed", "km/h", NULL, "Wind Speed");
+      initHAEntity("wind_gust_speed", "sensor", "wind_speed", "km/h", NULL, "Wind Gust Speed");
+      initHAEntity("wind_dir", "sensor", NULL, "°", "mdi:compass", "Wind Direction");
+      initHAEntity("wind_dir_cardinal", "sensor", NULL, NULL, "mdi:compass", "Wind Direction");
+      initHAEntity("wind_gust_dir", "sensor", NULL, "°", "mdi:compass", "Wind Gust Direction");
+      initHAEntity("wind_gust_dir_cardinal", "sensor", NULL, NULL, "mdi:compass", "Wind Gust Direction");
+    }
+
+    // BME
+    if (bme_sensor) {
+      initHAEntity("temperature", "sensor", "temperature", "°C", NULL, "Temperature");
+      initHAEntity("humidity", "sensor", "humidity", "%", NULL, "Humidity");
+      initHAEntity("dew_point", "sensor", "temperature", "°C", NULL, "Dew Point");
+      initHAEntity("pressure", "sensor", "atmospheric_pressure", "hPa", NULL, "Pressure");
+    }    
+
+    // MLX
+    if (mlx_sensor) {
+      initHAEntity("ir_ambient", "sensor", "temperature", "°C", NULL, "IR Ambient Temperature");
+      initHAEntity("ir_sky", "sensor", "temperature", "°C", NULL, "IR Sky Temperature");
+      initHAEntity("clouds", "sensor", NULL, "%", "mdi:cloud", "Clouds");
+    }
+
+    // VEML
+    if (veml_sensor) {
+      initHAEntity("light", "sensor", "illuminance", "lx", NULL, "Light");
+    }
+
   } else {
       Serial.println("Home Assistant integration DISABLED");
   }
@@ -328,9 +370,12 @@ void loop() {
   // check WiFi and auto reconnect if needed
   if (WiFi.status() != WL_CONNECTED) {
     Serial.print("WiFi connection lost!");
-    if (wifiConnect()) {
-      Serial.println("WiFi connected");
-    }
+    //if (wifiConnect()) {
+    //  Serial.println("WiFi connected");
+    //}
+    Serial.println("Restarting device");
+    delay(2000);
+    NVIC_SystemReset(); // restart device if wifi connection lost
   }
 
   // auto reconnect MQTT
@@ -503,7 +548,7 @@ bool mqttSubscribe() {
       Serial.print("  - Publish '0' to ");
       Serial.print(mqtt_poll_topic);
       Serial.println(" to read sensors on request or publish a number to set auto polling in seconds");
-      Serial.print("  - Publish 'yes' to ");
+      Serial.print("  - Publish 'on' to ");
       Serial.print(mqtt_restart_topic);
       Serial.println(" to restart the device");
       Serial.println("");
@@ -635,15 +680,16 @@ void mqttCallback(int length) {
   } else if (topic == mqtt_restart_topic) { // handle restart
     char restcmd[length];
     strncpy(restcmd, (char*)payload, length);
-    if (!strcmp(restcmd, "yes")) {
+    if (!strcmp(restcmd, "on")) {
       Serial.println("Restarting device");
       mqttPublishStatus(0);
+      delay(2000);
       NVIC_SystemReset();
     }
   }
 }
 
-void initHASensor(const char* sensor, const char* ha_sensor_type, const char* ha_device_class, const char* uom, const char* icon, const char* ha_friendly_device_name)
+void initHAEntity(const char* sensor, const char* ha_sensor_type, const char* ha_device_class, const char* uom, const char* icon, const char* ha_friendly_device_name)
 {
   DynamicJsonDocument jsonBufferConfig(512);
   JsonObject jhc = jsonBufferConfig.to<JsonObject>();
@@ -711,52 +757,6 @@ void getSensors() {
   char json[512];
 
   blinkLED(1);
-
-  // Enable autodiscovery of sensors for Home Assistant
-  if (HOMEASSISTANT) {
-  
-    // Default - always available
-    initHASensor("status", "sensor", NULL, NULL, "mdi:connection", "Status");
-    initHASensor("last_seen", "sensor", "timestamp", NULL, "mdi:clock", "Last Seen");
-    initHASensor("poll", "sensor", NULL, "s", "mdi:clock", "Update Interval");
-    initHASensor("rssi", "sensor", "signal_strength", "dBm", NULL, "RSSI");
-
-    // Rainfall
-    if (rainfall_sensor) {
-      initHASensor("rainfall", "sensor", "precipitation", "mm", NULL, "Rainfall");
-    }
-
-    // Wind Speed & Direction
-    if (wind_sensor) {
-      initHASensor("wind_speed", "sensor", "wind_speed", "km/h", NULL, "Wind Speed");
-      initHASensor("wind_gust_speed", "sensor", "wind_speed", "km/h", NULL, "Wind Gust Speed");
-      initHASensor("wind_dir", "sensor", NULL, "°", "mdi:compass", "Wind Direction");
-      initHASensor("wind_dir_cardinal", "sensor", NULL, NULL, "mdi:compass", "Wind Direction");
-      initHASensor("wind_gust_dir", "sensor", NULL, "°", "mdi:compass", "Wind Gust Direction");
-      initHASensor("wind_gust_dir_cardinal", "sensor", NULL, NULL, "mdi:compass", "Wind Gust Direction");
-    }
-
-    // BME
-    if (bme_sensor) {
-      initHASensor("temperature", "sensor", "temperature", "°C", NULL, "Temperature");
-      initHASensor("humidity", "sensor", "humidity", "%", NULL, "Humidity");
-      initHASensor("dew_point", "sensor", "temperature", "°C", NULL, "Dew Point");
-      initHASensor("pressure", "sensor", "atmospheric_pressure", "hPa", NULL, "Pressure");
-    }    
-  
-    // MLX
-    if (mlx_sensor) {
-      initHASensor("ir_ambient", "sensor", "temperature", "°C", NULL, "IR Ambient Temperature");
-      initHASensor("ir_sky", "sensor", "temperature", "°C", NULL, "IR Sky Temperature");
-      initHASensor("clouds", "sensor", NULL, "%", "mdi:cloud", "Clouds");
-    }
-
-    // VEML
-    if (veml_sensor) {
-      initHASensor("light", "sensor", "illuminance", "lx", NULL, "Light");
-    }
-
-  }
 
   // Update PWS status
   mqttPublishStatus(1);
