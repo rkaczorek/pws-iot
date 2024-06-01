@@ -121,7 +121,7 @@ char mqtt_setroot_topic[36]; // eg. environment/set
 char mqtt_setname_topic[70]; // eg. environment/mysensor/set
 char mqtt_status_topic[76]; // eg. environment/mysensor/status
 char mqtt_poll_topic[71]; // eg. environment/mysensor/poll
-char mqtt_restart_topic[74]; // eg. environment/mysensor/restart
+char mqtt_control_topic[74]; // eg. environment/mysensor/control
 
 byte mac[6]; // 6 byte array to hold the MAC address
 char hostname[32]; // an array to hold wifi hostname
@@ -178,71 +178,7 @@ void setup() {
   Serial.println("====================================");
   Serial.println("");
 
-  // Check for the WiFi module:
-  if (WiFi.status() == WL_NO_MODULE) {
-    Serial.println("Communication with WiFi module failed!");
-    while (true);
-  }
-  
-  // Connect to WiFi
-  WiFi.macAddress(mac);
-  sprintf(hostname, "pws-%x%x", mac[1], mac[0]);
-  WiFi.setHostname(hostname);
-
-  // first try
-  wifiStatus = WiFi.begin(WIFI_SSID, WIFI_PASS);
-
-  while (!wifiConnect()) {
-    delay(5000);
-  }
-
-  // Start the WiFi OTA
-  ArduinoOTA.begin(WiFi.localIP(), OTA_USER, OTA_PASS, InternalStorage);
-
-  // Connect to MQTT server
-
-  // set MQTT device name to hostname
-  if (MQTT_DEVICE_ID_TO_HOSTNAME) {
-    strcpy(mqtt_device_id, hostname);
-  }
-
-  // convert MQTT device name to lower case
-  for (int i = 0; i < strlen(mqtt_device_id); i++)
-    mqtt_device_id[i] = tolower(mqtt_device_id[i]);
-
-  // construct MQTT topics
-  sprintf(mqtt_device_topic, "%s/%s", mqtt_root_topic, mqtt_device_id); // simplified device topic
-  sprintf(mqtt_status_topic, "%s/status", mqtt_device_topic); // device status
-
-  // device control via MQTT
-  sprintf(mqtt_setroot_topic, "%s/set", mqtt_root_topic); // setting root name
-  sprintf(mqtt_setname_topic, "%s/set", mqtt_device_topic);   // setting device name
-  sprintf(mqtt_restart_topic, "%s/restart", mqtt_device_topic); // restarting device
-  sprintf(mqtt_poll_topic, "%s/poll", mqtt_device_topic); // setting polling time (configurable via mqtt)
-
-  mqttClient.setId(mqtt_device_id);
-  mqttClient.setUsernamePassword(mqtt_user, mqtt_pass);
-  //mqttClient.setCleanSession(true); // http://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.html#_Keep_Alive
-  //mqttClient.setKeepAliveInterval(60*1000L);
-  //mqttClient.setConnectionTimeout(60*1000L);
-
-  // set callback
-  mqttClient.onMessage(mqttCallback);
-
-  // set last will message
-  String lastWill = "offline";
-  mqttClient.beginWill(mqtt_status_topic, lastWill.length(), true, 1);
-  mqttClient.print(lastWill);
-  mqttClient.endWill();
-
-  while (!mqttConnect()) {
-    delay(5000);
-  }
-
-  // Subscribe to control topics
-  mqttSubscribe();
-
-// List all available I2C devices
+  // List all available I2C devices
   if (DEBUG)
     getI2Cdevices();
 
@@ -367,31 +303,8 @@ void setup() {
 }
 
 void loop() {
-  // check WiFi and auto reconnect if needed
-  if (WiFi.status() != WL_CONNECTED) {
-    Serial.print("WiFi connection lost!");
-    //if (wifiConnect()) {
-    //  Serial.println("WiFi connected");
-    //}
-    Serial.println("Restarting device");
-    delay(2000);
-    NVIC_SystemReset(); // restart device if wifi connection lost
-  }
-
-  // auto reconnect MQTT
-  if  (!mqttClient.connected()) {
-    Serial.println("MQTT broker disconnected!");
-    if (mqttConnect()) {
-      Serial.println("MQTT broker connected");
-      mqttSubscribe();
-    }
-  }
-
-  // check for WiFi OTA updates
-  ArduinoOTA.poll();
-  
-  // send MQTT keep alives
-  mqttClient.poll();
+  wifiConnect(); // AUtoconnect WiFi
+  mqttConnect(); // Autoconnect MQTT
 
   // collect wind sensors data every loop
   if (millis() - lastWindMillis > WIND_AVERAGING_TIME) {
@@ -448,6 +361,12 @@ void loop() {
   autoPolling();
 }
 
+void restartDevice() {
+  Serial.println("Restarting device in 3 seconds...");
+  delay(3000);
+  NVIC_SystemReset();
+}
+
 void autoPolling() {
   if ( polling == 0 || millis() - timestamp < polling * 1000)
     return;
@@ -455,10 +374,33 @@ void autoPolling() {
   timestamp = millis();
 }
 
-bool wifiConnect() {
+void wifiConnect() {
+  int count = 0;
+
+  if (WiFi.status() == WL_CONNECTED) {
+    ArduinoOTA.poll(); // check for WiFi OTA updates
+    return;
+  }
+
+  // Check for the WiFi module:
+  if (WiFi.status() == WL_NO_MODULE) {
+    Serial.println("Communication with WiFi module failed!");
+    restartDevice();
+  }
+  
+  WiFi.macAddress(mac);
+  sprintf(hostname, "pws-%x%x", mac[1], mac[0]);
+  WiFi.setHostname(hostname);
+
   Serial.print("Connecting to WiFi... ");
-  wifiStatus = WiFi.begin(WIFI_SSID, WIFI_PASS);
-  if (wifiStatus == WL_CONNECTED) {
+  do
+  {
+    wifiStatus = WiFi.begin(WIFI_SSID, WIFI_PASS);
+    delay(100);
+  }
+  while (wifiStatus != WL_CONNECTED && count++ < 5 );
+
+  if (WiFi.status() == WL_CONNECTED) {
     Serial.println("OK");
     if (DEBUG) {
       Serial.print("  - SSID: ");
@@ -473,18 +415,50 @@ bool wifiConnect() {
       Serial.println(WiFi.gatewayIP());
       Serial.println();
     }
-    return true;
+    ArduinoOTA.begin(WiFi.localIP(), OTA_USER, OTA_PASS, InternalStorage); // Start the WiFi OTA
   } else {
     Serial.println("ERROR");
-    Serial.println("Restarting device...");
-    delay(500);
+    delay(3000);
     NVIC_SystemReset();
-    return false;
   }
 }
 
-bool mqttConnect() {
+void mqttConnect() {
+  if (mqttClient.connected()) {
+    mqttClient.poll(); // send MQTT keep alives
+    return;
+  }
+
   Serial.print("Connecting to the MQTT broker... ");
+
+  // set MQTT device name to hostname
+  if (MQTT_DEVICE_ID_TO_HOSTNAME) {
+    strcpy(mqtt_device_id, hostname);
+  }
+
+  // convert MQTT device name to lower case
+  for (int i = 0; i < strlen(mqtt_device_id); i++)
+    mqtt_device_id[i] = tolower(mqtt_device_id[i]);
+
+  // construct MQTT topics
+  sprintf(mqtt_device_topic, "%s/%s", mqtt_root_topic, mqtt_device_id); // simplified device topic
+  sprintf(mqtt_status_topic, "%s/status", mqtt_device_topic); // device status
+
+  // device control via MQTT
+  sprintf(mqtt_setroot_topic, "%s/set", mqtt_root_topic); // setting root name
+  sprintf(mqtt_setname_topic, "%s/set", mqtt_device_topic);   // setting device name
+  sprintf(mqtt_control_topic, "%s/control", mqtt_device_topic); // controling device
+  sprintf(mqtt_poll_topic, "%s/poll", mqtt_device_topic); // setting polling time (configurable via mqtt)
+
+  mqttClient.setId(mqtt_device_id);
+  mqttClient.setUsernamePassword(mqtt_user, mqtt_pass);
+  //mqttClient.setCleanSession(true); // http://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.html#_Keep_Alive
+  //mqttClient.setKeepAliveInterval(60*1000L);
+  //mqttClient.setConnectionTimeout(60*1000L);
+
+  // set callback
+  mqttClient.onMessage(mqttCallback);
+  
   if (mqttClient.connect(mqtt_host, mqtt_port)) {
     Serial.println("OK");
     if (DEBUG) {
@@ -500,8 +474,18 @@ bool mqttConnect() {
       Serial.println(mqtt_device_id);
       Serial.println();
     }
+
+    // set last will message
+    String lastWill = "offline";
+    mqttClient.beginWill(mqtt_status_topic, lastWill.length(), true, 1);
+    mqttClient.print(lastWill);
+    mqttClient.endWill();
+  
+    // Subscribe to control topics
+    mqttSubscribe();
+
+    // Publish status
     mqttPublishStatus(1);
-    return true;
   } else {
     Serial.print("ERROR");
     if (DEBUG) {
@@ -533,24 +517,23 @@ bool mqttConnect() {
       }
       Serial.println(")");
     } else {
-      Serial.println("");
+      Serial.println();
     }
-    return false;
   }
 }
 
 bool mqttSubscribe() {
   Serial.print("Subscribing to control topics... ");
-  if (mqttClient.subscribe(mqtt_poll_topic) && mqttClient.subscribe(mqtt_restart_topic)) {
+  if (mqttClient.subscribe(mqtt_poll_topic) && mqttClient.subscribe(mqtt_control_topic)) {
     // successfully subscribed to topics
     Serial.println("OK");
     if(DEBUG) {
       Serial.print("  - Publish '0' to ");
       Serial.print(mqtt_poll_topic);
       Serial.println(" to read sensors on request or publish a number to set auto polling in seconds");
-      Serial.print("  - Publish 'on' to ");
-      Serial.print(mqtt_restart_topic);
-      Serial.println(" to restart the device");
+      Serial.print("  - Publish command to "); // note: 'restart' command available only
+      Serial.print(mqtt_control_topic);
+      Serial.println(" to control the device");
       Serial.println("");
     }
     return true;
@@ -677,14 +660,12 @@ void mqttCallback(int length) {
     if(polling == 0) {
       getSensors();
     }
-  } else if (topic == mqtt_restart_topic) { // handle restart
+  } else if (topic == mqtt_control_topic) { // handle 'restart' command
     char restcmd[length];
     strncpy(restcmd, (char*)payload, length);
-    if (!strcmp(restcmd, "on")) {
-      Serial.println("Restarting device");
+    if (!strcmp(restcmd, "restart")) {
       mqttPublishStatus(0);
-      delay(2000);
-      NVIC_SystemReset();
+      restartDevice();
     }
   }
 }
