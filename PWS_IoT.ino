@@ -172,7 +172,7 @@ void setup() {
 
   blinkLED(1);
 
-  Serial.println("====================================");
+Serial.println("====================================");
   Serial.print("|  Personal Weather Station v");
   Serial.print(VERSION);
   Serial.println("  |");
@@ -309,10 +309,14 @@ void loop() {
   // collect wind sensors data every loop
   if (millis() - lastWindMillis > WIND_AVERAGING_TIME) {
 
+    if (DEBUG)
+      telnetDebug("Wind sensors:");
+
     // get wind direction
     int winddir = get_wind_direction();
 
-    telnetDebug(winddir);
+    if (DEBUG)
+      telnetDebug(winddir);
     
     if (winddir != -1) {
       wind_sensor = 1; // we have readings - ENABLE
@@ -329,6 +333,7 @@ void loop() {
       // get wind speed
       float windspeed = (float) windClicks / (WIND_AVERAGING_TIME / 1000); // clicks per second
 
+    if (DEBUG)
       telnetDebug(windspeed);
 
       windClicks = 0;
@@ -350,13 +355,18 @@ void loop() {
   // collect clouds sensors data every loop
   if (millis() - lastCloudsMillis > CLOUDS_AVERAGING_TIME) {
 
+    if (DEBUG)
+      telnetDebug("Sky sensors:");
+
     // get ambient temperature and sky temperature
     if (mlx_sensor) {
       float temperature_ambient = ((int) (mlx.readAmbientTempC() * 100)) / 100.0; // celcius
       float temperature_sky = ((int) (mlx.readObjectTempC() * 100)) / 100.0; // celcius
 
-      telnetDebug(temperature_ambient);
-      telnetDebug(temperature_sky);
+      if (DEBUG) {
+        telnetDebug(temperature_ambient);
+        telnetDebug(temperature_sky);
+      }
 
       if (temperature_ambient > -273.0 && temperature_sky > -273.0) { // sanity check
         irAmbient.push_back(temperature_ambient);
@@ -441,8 +451,7 @@ void wifiConnect() {
     server.begin(); // Start telnet server
   } else {
     Serial.println("ERROR");
-    delay(3000);
-    NVIC_SystemReset();
+    restartDevice();
   }
 }
 
@@ -554,7 +563,7 @@ bool mqttSubscribe() {
     if(DEBUG) {
       Serial.print("  - Publish '0' to ");
       Serial.print(mqtt_poll_topic);
-      Serial.println(" to read sensors on request or publish a number to set auto polling in seconds");
+      Serial.println(" to request sensors reading or publish an integer number to set auto polling in seconds");
       Serial.print("  - Publish command to "); // note: 'restart' command available only
       Serial.print(mqtt_control_topic);
       Serial.println(" to control the device");
@@ -792,7 +801,8 @@ void getSensors() {
   sensors["poll"] = polling;
 
   if (DEBUG) {
-    Serial.println("Reading sensors...");
+    Serial.println("Sensors:");
+    telnetDebug("Sensors:");
   }
 
   // Get sensors data
@@ -804,9 +814,11 @@ void getSensors() {
     float humidity = bme.readHumidity(); // %
     float pressure = bme.readPressure() / 100.0F; // hPa
 
-    telnetDebug(temperature);
-    telnetDebug(humidity);
-    telnetDebug(pressure);
+    if (DEBUG) {
+      telnetDebug(temperature);
+      telnetDebug(humidity);
+      telnetDebug(pressure);
+    }
 
     if (C_ENABLE)
       temperature += C_TEMPERATURE; // sensor reading correction
@@ -859,7 +871,7 @@ void getSensors() {
     if (irAmbient.size() > 0 && irSky.size() > 0) {
       float temperature_ambient = 1.0 * accumulate(irAmbient.begin(), irAmbient.end(), 0LL) / irAmbient.size(); // average ambient temperature over CLOUDS_AVERAGING_TIME
       float temperature_sky = 1.0 * accumulate(irSky.begin(), irSky.end(), 0LL) / irSky.size(); // average sky temperature over CLOUDS_AVERAGING_TIME
-  
+
       // Based on AAG CloudWatcher: http://lunaticoastro.com/aagcw/TechInfo/SkyTemperatureModel.pdf
       // Cloudy sky is warmer that clear sky. Thus sky temperature meassured by IR sensor is a good indicator to estimate cloud cover.
       // However IR actually meassures the temperature of all the air column above, which is increassing with ambient temperature.
@@ -940,7 +952,11 @@ void getSensors() {
   
       if (DEBUG) {
         Serial.println("  MLX: OK");
-      }
+        if (DEBUG)
+          telnetDebug(temperature_ambient);
+          telnetDebug(temperature_sky);
+          telnetDebug(clouds);
+        }
     }
   }
 
@@ -960,13 +976,12 @@ void getSensors() {
   
     float lux = veml.readLux(VEML_LUX_AUTO);
 
-    telnetDebug(lux);
-
     if (lux >= 0 && lux < 100000 ) { // sanity check
       mqttPublishWeather("light", lux);
       sensors["light"] = lux;
       if (DEBUG) {
         Serial.println("  VEML: OK");
+        telnetDebug(lux);
       }
     }
   }
@@ -996,6 +1011,7 @@ void getSensors() {
   
       if (DEBUG) {
         Serial.println("  Wind speed: OK");
+        telnetDebug(windspeed);
       }
     }
 
@@ -1035,12 +1051,14 @@ void getSensors() {
       mqttPublishWeather("wind_dir_cardinal", winddir_cardinal.c_str());    
       sensors["wind_dir_cardinal"] = winddir_cardinal;    
   
-      // clear values for next reading
-      windDir.clear();
-  
       if (DEBUG) {
         Serial.println("  Wind direction: OK");
+        telnetDebug(winddir);
+        telnetDebug(winddir_cardinal.c_str());
       }
+
+      // clear values for next reading
+      windDir.clear();
     }
 
     // ========================= WIND GUST SPEED ==========================
@@ -1055,13 +1073,14 @@ void getSensors() {
 
     mqttPublishWeather("wind_gust_speed", windGustSpeed);
     sensors["wind_gust_speed"] = windGustSpeed;      
+
+    if (DEBUG) {
+      Serial.println("  Wind gust: OK");
+      telnetDebug(windGustSpeed);
+    }
   
     // clear values for next reading
     windGustSpeed = 0;
-  
-    if (DEBUG) {
-      Serial.println("  Wind gust: OK");
-    }
 
     // ========================= WIND GUST DIRECTION ==========================
     if (windGustDir.size() > 0) {
@@ -1099,13 +1118,15 @@ void getSensors() {
       sensors["wind_gust_dir"] = windgustdir;
       mqttPublishWeather("wind_gust_dir_cardinal", windgustdir_cardinal.c_str());
       sensors["wind_gust_dir_cardinal"] = windgustdir_cardinal;
-  
-      // clear values for next reading
-      windGustDir.clear();
-  
+
       if (DEBUG) {
         Serial.println("  Wind gust direction: OK");
+        telnetDebug(windgustdir);
+        telnetDebug(windgustdir_cardinal.c_str());
       }
+
+      // clear values for next reading
+      windGustDir.clear();
     }
   }
 
@@ -1123,8 +1144,6 @@ void getSensors() {
     */
     
     float rainfall = rainClicks * 0.2794; // There is 0.011" = 0.2794 mm of rainfall for each click
-
-    telnetDebug(rainfall);
     
     rainClicks = 0; // clear values for next reading
     
@@ -1135,6 +1154,7 @@ void getSensors() {
   
     if (DEBUG) {
       Serial.println("  Rainfall: OK");
+      telnetDebug(rainfall);
     }
   }
 
@@ -1142,6 +1162,11 @@ void getSensors() {
 
   serializeJson(sensors, json);
   mqttPublishWeather("json", json);
+
+  if (DEBUG) {
+    Serial.println("DONE");
+    telnetDebug("DONE");
+  }
 }
 
 int get_wind_direction()
