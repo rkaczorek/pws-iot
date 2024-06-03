@@ -1,6 +1,5 @@
 /*
   Name: Personal Weather Station IoT
-  Version: 1.3
   By: Radek Kaczorek, (C) 2021 - 2024
   License: GNU General Public License v3.0
 
@@ -39,7 +38,7 @@
     HA_DISCOVERY_TOPIC
 */
 
-#define VERSION 1.3.1
+#define VERSION 1.4
 
 #include "PWS_IoT.h"
 
@@ -56,8 +55,8 @@
 #include <ArduinoOTA.h> // https://github.com/jandrassy/ArduinoOTA
 #include <ArduinoJson.h>  // https://github.com/bblanchon/ArduinoJson
 #include <Adafruit_BME280.h> // https://github.com/adafruit/Adafruit_BME280_Library
-#include <SparkFunMLX90614.h> // https://github.com/sparkfun/SparkFun_MLX90614_Arduino_Library
-#include "Adafruit_VEML7700.h" // https://github.com/adafruit/Adafruit_VEML7700
+#include <Adafruit_MLX90614.h> // https://github.com/adafruit/Adafruit-MLX90614-Library
+#include <Adafruit_VEML7700.h> // https://github.com/adafruit/Adafruit_VEML7700
 #include <Cardinal.h> // https://github.com/DaAwesomeP/arduino-cardinal
 #include <SimpleTime.h>
 
@@ -132,8 +131,9 @@ int wifiStatus = WL_IDLE_STATUS;
 WiFiServer server(23);
 
 Adafruit_BME280 bme; // BME280 sensor - temperature, humidity, pressure
-IRTherm mlx; // MLX90614 sensor - infrared termometer
+Adafruit_MLX90614 mlx = Adafruit_MLX90614(); // MLX90614 sensor - infrared termometer
 Adafruit_VEML7700 veml = Adafruit_VEML7700(); // VEML7700 sensor - ambient light
+
 Cardinal cardinal; // Cardinal direction NESW
 
 void rainfallIRQ()
@@ -204,7 +204,6 @@ void setup() {
   // Init MLX
   if (mlx.begin()) { // i2c slave address: 0x5a
     Serial.println("  - MLX90614 sensor\tOK");
-    mlx.setUnit(TEMP_C); // Set the library's units to Celsius
     mlx_sensor = 1;
   } else {
     Serial.println("  - MLX90614 sensor\tERROR");
@@ -353,10 +352,8 @@ void loop() {
 
     // get ambient temperature and sky temperature
     if (mlx_sensor) {
-      mlx.read(); // the firt read is not reliable; according to datasheet On-chip IIR filter is skipped for the first measurement (p.19)
-      mlx.read();
-      float temperature_ambient = ((int) (mlx.ambient() * 100)) / 100.0; // celcius
-      float temperature_sky = ((int) (mlx.object() * 100)) / 100.0; // celcius
+      float temperature_ambient = ((int) (mlx.readAmbientTempC() * 100)) / 100.0; // celcius
+      float temperature_sky = ((int) (mlx.readObjectTempC() * 100)) / 100.0; // celcius
 
       telnetPrint(temperature_ambient);
       telnetPrint(temperature_sky);
