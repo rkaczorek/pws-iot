@@ -39,7 +39,7 @@
     HA_DISCOVERY_TOPIC
 */
 
-#define VERSION 1.3
+#define VERSION 1.3.1
 
 #include "PWS_IoT.h"
 
@@ -129,6 +129,7 @@ char hostname[32]; // an array to hold wifi hostname
 WiFiClient wifiClient;
 MqttClient mqttClient(wifiClient);
 int wifiStatus = WL_IDLE_STATUS;
+WiFiServer server(23);
 
 Adafruit_BME280 bme; // BME280 sensor - temperature, humidity, pressure
 IRTherm mlx; // MLX90614 sensor - infrared termometer
@@ -303,7 +304,7 @@ void setup() {
 }
 
 void loop() {
-  wifiConnect(); // AUtoconnect WiFi
+  wifiConnect(); // Autoconnect WiFi
   mqttConnect(); // Autoconnect MQTT
 
   // collect wind sensors data every loop
@@ -311,13 +312,16 @@ void loop() {
 
     // get wind direction
     int winddir = get_wind_direction();
+
+    telnetPrint(winddir);
+    
     if (winddir != -1) {
+      wind_sensor = 1; // we have readings - ENABLE
       // calculate corrected wind direction
       winddir += WIND_DIR_CORRECTION;
       if(winddir >= 360) winddir -= 360;
       if(winddir < 0) winddir += 360;
       windDir.push_back(winddir);
-      wind_sensor = 1; // we have readings - ENABLE
     } else {
       wind_sensor = 0; // we do not have readings - DISABLE
     }
@@ -325,6 +329,9 @@ void loop() {
     if (wind_sensor) {
       // get wind speed
       float windspeed = (float) windClicks / (WIND_AVERAGING_TIME / 1000); // clicks per second
+
+      telnetPrint(windspeed);
+
       windClicks = 0;
       windspeed *= 2.4011412; // 1 click per second equals 1.492MPH = 2.4011412 km/h
       windSpeed.push_back(windspeed);      
@@ -351,6 +358,9 @@ void loop() {
       float temperature_ambient = ((int) (mlx.ambient() * 100)) / 100.0; // celcius
       float temperature_sky = ((int) (mlx.object() * 100)) / 100.0; // celcius
 
+      telnetPrint(temperature_ambient);
+      telnetPrint(temperature_sky);
+
       if (temperature_ambient > -273.0 && temperature_sky > -273.0) { // sanity check
         irAmbient.push_back(temperature_ambient);
         irSky.push_back(temperature_sky);
@@ -359,6 +369,21 @@ void loop() {
     lastCloudsMillis = millis();
   }
   autoPolling();
+}
+
+void telnetPrint(const char* payload) {
+  WiFiClient client = server.available();
+  if (client && client.connected()) {
+    for (int i = 0; i < strlen(payload); i++)
+      server.write(payload[i]);
+    server.write("\n");
+  }
+}
+
+void telnetPrint(float val) {
+    char payload[16];
+    sprintf(payload, "%f", val);
+    telnetPrint(payload);
 }
 
 void restartDevice() {
@@ -416,6 +441,7 @@ void wifiConnect() {
       Serial.println();
     }
     ArduinoOTA.begin(WiFi.localIP(), OTA_USER, OTA_PASS, InternalStorage); // Start the WiFi OTA
+    server.begin(); // Start telnet server
   } else {
     Serial.println("ERROR");
     delay(3000);
@@ -424,8 +450,9 @@ void wifiConnect() {
 }
 
 void mqttConnect() {
+  mqttClient.poll(); // send MQTT keep alives
+
   if (mqttClient.connected()) {
-    mqttClient.poll(); // send MQTT keep alives
     return;
   }
 
@@ -583,7 +610,7 @@ void mqttPublishWeather(char* topic, float val) {
     Serial.print("  message: ");
     Serial.println(msg);
     Serial.println("");
-  }  
+  }
 }
 
 void mqttPublishWeather(char* topic, const char* msg) {
@@ -741,6 +768,7 @@ void getSensors() {
 
   // Update PWS status
   mqttPublishStatus(1);
+  sensors["status"] = "online";
 
   // Last seen
   // 2024-01-04T21:45:19+00:00
@@ -778,6 +806,10 @@ void getSensors() {
     float temperature = bme.readTemperature(); // celcius
     float humidity = bme.readHumidity(); // %
     float pressure = bme.readPressure() / 100.0F; // hPa
+
+    telnetPrint(temperature);
+    telnetPrint(humidity);
+    telnetPrint(pressure);
 
     if (C_ENABLE)
       temperature += C_TEMPERATURE; // sensor reading correction
@@ -930,10 +962,15 @@ void getSensors() {
     // Overcast Night     0.0001
   
     float lux = veml.readLux(VEML_LUX_AUTO);
-    mqttPublishWeather("light", lux);
-    sensors["light"] = lux;
-    if (DEBUG) {
-      Serial.println("  VEML: OK");
+
+    telnetPrint(lux);
+
+    if (lux >= 0 && lux < 100000 ) { // sanity check
+      mqttPublishWeather("light", lux);
+      sensors["light"] = lux;
+      if (DEBUG) {
+        Serial.println("  VEML: OK");
+      }
     }
   }
 
@@ -1089,6 +1126,9 @@ void getSensors() {
     */
     
     float rainfall = rainClicks * 0.2794; // There is 0.011" = 0.2794 mm of rainfall for each click
+
+    telnetPrint(rainfall);
+    
     rainClicks = 0; // clear values for next reading
     
     rainfall = ((int)(rainfall * 10000)) / 10000.0;
