@@ -312,7 +312,7 @@ void loop() {
     // get wind direction
     int winddir = get_wind_direction();
 
-    telnetPrint(winddir);
+    telnetDebug(winddir);
     
     if (winddir != -1) {
       wind_sensor = 1; // we have readings - ENABLE
@@ -329,7 +329,7 @@ void loop() {
       // get wind speed
       float windspeed = (float) windClicks / (WIND_AVERAGING_TIME / 1000); // clicks per second
 
-      telnetPrint(windspeed);
+      telnetDebug(windspeed);
 
       windClicks = 0;
       windspeed *= 2.4011412; // 1 click per second equals 1.492MPH = 2.4011412 km/h
@@ -355,8 +355,8 @@ void loop() {
       float temperature_ambient = ((int) (mlx.readAmbientTempC() * 100)) / 100.0; // celcius
       float temperature_sky = ((int) (mlx.readObjectTempC() * 100)) / 100.0; // celcius
 
-      telnetPrint(temperature_ambient);
-      telnetPrint(temperature_sky);
+      telnetDebug(temperature_ambient);
+      telnetDebug(temperature_sky);
 
       if (temperature_ambient > -273.0 && temperature_sky > -273.0) { // sanity check
         irAmbient.push_back(temperature_ambient);
@@ -368,7 +368,7 @@ void loop() {
   autoPolling();
 }
 
-void telnetPrint(const char* payload) {
+void telnetDebug(const char* payload) {
   WiFiClient client = server.available();
   if (client && client.connected()) {
     for (int i = 0; i < strlen(payload); i++)
@@ -377,10 +377,10 @@ void telnetPrint(const char* payload) {
   }
 }
 
-void telnetPrint(float val) {
+void telnetDebug(float val) {
     char payload[16];
     sprintf(payload, "%f", val);
-    telnetPrint(payload);
+    telnetDebug(payload);
 }
 
 void restartDevice() {
@@ -804,9 +804,9 @@ void getSensors() {
     float humidity = bme.readHumidity(); // %
     float pressure = bme.readPressure() / 100.0F; // hPa
 
-    telnetPrint(temperature);
-    telnetPrint(humidity);
-    telnetPrint(pressure);
+    telnetDebug(temperature);
+    telnetDebug(humidity);
+    telnetDebug(pressure);
 
     if (C_ENABLE)
       temperature += C_TEMPERATURE; // sensor reading correction
@@ -960,7 +960,7 @@ void getSensors() {
   
     float lux = veml.readLux(VEML_LUX_AUTO);
 
-    telnetPrint(lux);
+    telnetDebug(lux);
 
     if (lux >= 0 && lux < 100000 ) { // sanity check
       mqttPublishWeather("light", lux);
@@ -1124,7 +1124,7 @@ void getSensors() {
     
     float rainfall = rainClicks * 0.2794; // There is 0.011" = 0.2794 mm of rainfall for each click
 
-    telnetPrint(rainfall);
+    telnetDebug(rainfall);
     
     rainClicks = 0; // clear values for next reading
     
