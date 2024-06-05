@@ -705,11 +705,8 @@ void mqttCallback(int length) {
 
 void initHAEntity(const char* sensor, const char* ha_sensor_type, const char* ha_device_class, const char* uom, const char* icon, const char* ha_friendly_device_name)
 {
-  DynamicJsonDocument jsonBufferConfig(512);
-  JsonObject jhc = jsonBufferConfig.to<JsonObject>();
-
-  DynamicJsonDocument jsonBufferDevice(128);
-  JsonObject jdev = jsonBufferDevice.to<JsonObject>();
+  JsonDocument jhc;
+  JsonDocument jdev;
 
   // prepare topics
   char ha_state_topic[128];
@@ -723,15 +720,14 @@ void initHAEntity(const char* sensor, const char* ha_sensor_type, const char* ha
   char ha_dev_unique_id[32];
   sprintf(ha_dev_unique_id, "%s_%s", mqtt_device_id, sensor);
 
+  // prepare json
   jdev["identifiers"] = mqtt_device_id;
   jdev["name"] = "Personal Weather Station";
   jdev["manufacturer"] = "Radek Kaczorek";
   jdev["model"] = "Arduino Nano 33 IoT";
   jdev["sw_version"] = VERSION;
+  jhc["device"] = jdev;
 
-  // prepare json
-  if (jdev)
-    jhc["device"] = jdev;
   if (ha_dev_unique_id)
     jhc["unique_id"] = ha_dev_unique_id;
   if (ha_device_class)
@@ -766,8 +762,7 @@ void initHAEntity(const char* sensor, const char* ha_sensor_type, const char* ha
 }
 
 void getSensors() {
-  DynamicJsonDocument jsonBuffer(512);
-  JsonObject sensors = jsonBuffer.to<JsonObject>();
+  JsonDocument sensors;
   char json[512];
 
   blinkLED(1);
