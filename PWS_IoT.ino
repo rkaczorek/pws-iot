@@ -66,6 +66,9 @@
 #define SEALEVELPRESSURE_HPA  (1013.25) // used for altitude calculation based on pressure
 #define sgn(x) ((x) < 0 ? -1 : ((x) > 0 ? 1 : 0)) // used for arithmetic sign of a value (needed by cloud detection algorithm)
 
+// Debug
+bool DEBUG = false;
+
 // ===================================================================
 //                       Enable/Disable sensors
 // ===================================================================
@@ -305,6 +308,7 @@ Serial.println("====================================");
 void loop() {
   wifiConnect(); // Autoconnect WiFi
   mqttConnect(); // Autoconnect MQTT
+  telnetCommand();
 
   // collect wind sensors data every loop
   if (millis() - lastWindMillis > WIND_AVERAGING_TIME) {
@@ -379,12 +383,9 @@ void loop() {
 }
 
 void telnetDebug(const char* payload) {
-  WiFiClient client = server.available();
-  if (client && client.connected()) {
-    for (unsigned int i = 0; i < strlen(payload); i++)
-      server.write(payload[i]);
-    server.write("\n");
-  }
+  for (unsigned int i = 0; i < strlen(payload); i++)
+    server.write(payload[i]);
+  server.write("\n");
 }
 
 void telnetDebug(float val) {
@@ -393,7 +394,40 @@ void telnetDebug(float val) {
     telnetDebug(payload);
 }
 
+void telnetCommand() {
+  if (WiFi.status() != WL_CONNECTED)
+    return;
+
+  WiFiClient client = server.available();
+
+  if (client) {
+    if (!client.connected()) {
+      client.flush(); // clear out the input buffer
+    }
+
+    if (client.available() > 0) {
+      char command = client.read();
+      if (command == 'h') {
+        telnetDebug("========================");
+        telnetDebug("Personal Weather Station");
+        telnetDebug("========================");
+        telnetDebug("press h to display help");
+        telnetDebug("press q to restart device");
+        telnetDebug("press d to toggle debug");
+      }
+      if (command == 'q') {
+        mqttPublishStatus(0);
+        restartDevice();
+      }
+      if (command == 'd') {
+        DEBUG = !DEBUG;
+      }
+    }
+  }
+}
+
 void restartDevice() {
+  telnetDebug("Restarting device in 3 seconds...");
   Serial.println("Restarting device in 3 seconds...");
   delay(3000);
   NVIC_SystemReset();
