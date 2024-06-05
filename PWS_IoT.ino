@@ -775,6 +775,10 @@ void getSensors() {
   // 2024-01-04T21:45:19+00:00
   char last_seen[32];
   time_t t = WiFi.getTime();
+  if (DEBUG) {
+    telnetDebug("Time:");
+    telnetDebug(t);
+  }
   sprintf(last_seen, "%d-%02d-%02dT%02d:%02d:%02d+00:00", year(t), month(t), day(t), hour(t), minute(t), second(t));
   mqttPublishWeather("last_seen", last_seen);
   sensors["last_seen"] = last_seen;
