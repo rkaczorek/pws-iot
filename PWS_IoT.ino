@@ -767,6 +767,9 @@ void getSensors() {
 
   blinkLED(1);
 
+  if (WiFi.status() != WL_CONNECTED)
+    return;
+
   // Update PWS status
   mqttPublishStatus(1);
   sensors["status"] = "online";
