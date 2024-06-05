@@ -381,7 +381,7 @@ void loop() {
 void telnetDebug(const char* payload) {
   WiFiClient client = server.available();
   if (client && client.connected()) {
-    for (int i = 0; i < strlen(payload); i++)
+    for (unsigned int i = 0; i < strlen(payload); i++)
       server.write(payload[i]);
     server.write("\n");
   }
@@ -470,7 +470,7 @@ void mqttConnect() {
   }
 
   // convert MQTT device name to lower case
-  for (int i = 0; i < strlen(mqtt_device_id); i++)
+  for (unsigned int i = 0; i < strlen(mqtt_device_id); i++)
     mqtt_device_id[i] = tolower(mqtt_device_id[i]);
 
   // construct MQTT topics
@@ -594,7 +594,7 @@ void mqttPublishStatus(int status)
   mqttClient.endMessage();
 }
 
-void mqttPublishWeather(char* topic, float val) {
+void mqttPublishWeather(const char* topic, float val) {
   char mqtt_topic[512] = "";
   char msg[16];
   sprintf(mqtt_topic, "%s/%s", mqtt_device_topic, topic);
@@ -619,7 +619,7 @@ void mqttPublishWeather(char* topic, float val) {
   }
 }
 
-void mqttPublishWeather(char* topic, const char* msg) {
+void mqttPublishWeather(const char* topic, const char* msg) {
   char mqtt_topic[512] = "";
   sprintf(mqtt_topic, "%s/%s", mqtt_device_topic, topic);
   size_t payloadSize = strlen(msg);
@@ -785,7 +785,7 @@ void getSensors() {
   sensors["last_seen"] = last_seen;
 
   // IP
-  char localip[16], iptopic[32];
+  char localip[16];
   IPAddress ip = WiFi.localIP();
   sprintf(localip, "%d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3]);
   mqttPublishWeather("ip", localip);
@@ -796,7 +796,7 @@ void getSensors() {
   mqttPublishWeather("rssi", rssi);
   sensors["rssi"] = rssi;
 
-  // RSSI
+  // Polling interval
   mqttPublishWeather("poll", polling);
   sensors["poll"] = polling;
 
@@ -991,7 +991,7 @@ void getSensors() {
     float windspeed = 0;
     if (windSpeed.size() > 0) {
     
-      for (int i = 0; i < windSpeed.size(); i++) {
+      for (unsigned int i = 0; i < windSpeed.size(); i++) {
         windspeed = windspeed + windSpeed[i];
       }
     
@@ -1025,7 +1025,7 @@ void getSensors() {
     
       int windDirSum = windDir[0];
       int windDirD = windDir[0];
-      for(int i = 1; i < windDir.size(); i++)
+      for(unsigned int i = 1; i < windDir.size(); i++)
       {
         int windDirDelta = windDir[i] - windDirD;
   
@@ -1093,7 +1093,7 @@ void getSensors() {
       int windGustSum = windGustDir[0];
       int windGustD = windGustDir[0];
   
-      for(int i = 1; i < windGustDir.size(); i++)
+      for(unsigned int i = 1; i < windGustDir.size(); i++)
       {
           int windGustDelta = windGustDir[i] - windGustD;
     
@@ -1238,8 +1238,8 @@ void getI2Cdevices()
   Serial.println("");
 }
 
-void blinkLED(int count) {
-  for (int i=0; i < count; i++) {
+void blinkLED(unsigned int count) {
+  for (unsigned int i=0; i < count; i++) {
     digitalWrite(LED_BUILTIN, HIGH);
     delay(120);
     digitalWrite(LED_BUILTIN, LOW);
