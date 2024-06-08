@@ -99,9 +99,9 @@ unsigned long lastCheck = 0;
 
 // statistical vars
 std::vector<float> windSpeed;
-std::vector<unsigned int> windDir;
+std::vector<int> windDir;
 float windGustSpeed = 0;
-std::vector<unsigned int> windGustDir;
+std::vector<int> windGustDir;
 std::vector<float> irAmbient;
 std::vector<float> irSky;
 
@@ -797,7 +797,7 @@ void initHAEntity(const char* sensor, const char* ha_sensor_type, const char* ha
 
 void getSensors() {
   JsonDocument sensors;
-  char json[512];
+  char json[1024];
 
   blinkLED(1);
 
